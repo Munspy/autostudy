@@ -15,7 +15,7 @@ token.pickle
 *.m4a
 *.wav
 *_temp.mp3
-*.txt
+
 
 # 맥OS 시스템 파일
 .DS_Store
