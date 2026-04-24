@@ -1,82 +1,89 @@
 import os
+import json
 from notion_client import Client
-from process.llm_gemini import summarize_corrected_text
+#구글드라이브
+from upload.google_drive import get_drive_file_url
 
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
-parent_page_id = os.getenv("NOTION_PAGE_ID")
+# 데이터베이스 ID를 사용하는 것을 권장합니다 (관리 효율상)
+database_id = os.getenv("NOTION_DATABASE_ID") 
 
 def create_rich_text_blocks(text, block_type="paragraph", max_length=2000):
-    """줄바꿈(\n)을 기준으로 노션 블록을 생성하며, 2000자 초과 시 안전하게 분할합니다."""
     blocks = []
-    
-    # 1. 먼저 줄바꿈(엔터)을 기준으로 텍스트를 나눕니다.
     paragraphs = text.split('\n')
-    
     for para in paragraphs:
         para = para.strip()
-        if not para:
-            continue  # 빈 줄은 무시 (만약 빈 줄도 살리고 싶다면 이 두 줄을 지우세요)
-            
-        # 2. 한 문단이 2000자를 넘는지 확인하는 안전장치
-        if len(para) > max_length:
-            chunks = [para[i:i+max_length] for i in range(0, len(para), max_length)]
-        else:
-            chunks = [para]
-            
-        # 3. 쪼개진 텍스트(들)를 노션 블록 형식으로 포장
+        if not para: continue
+        
+        # 2000자 초과 대응
+        chunks = [para[i:i+max_length] for i in range(0, len(para), max_length)]
         for chunk in chunks:
-            if block_type == "code":
-                blocks.append({
-                    "object": "block",
-                    "type": "code",
-                    "code": {
-                        "language": "markdown",
-                        "rich_text": [{"text": {"content": chunk}}]
-                    }
-                })
-            else:
-                blocks.append({
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"text": {"content": chunk}}]
-                    }
-                })
-                
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"text": {"content": chunk}}]
+                }
+            })
     return blocks
 
-def sync_to_notion(base_name, corrected_text, media_url, extension):
-    print(f"🚀 [Notion 팀] '{base_name}' 분석 및 업로드 시작...")
-    summary, terms = summarize_corrected_text(corrected_text)
+def trigger_notion_upload(base_name, target_dir):
+    print(f"🚀 [Notion 팀] '{base_name}' 노션 업로드 시작...")
     
-    is_video = extension in ['.mp4', '.mov']
+    # 1. JSON 데이터 로드
+    result_json_path = os.path.join(target_dir, f"{base_name}_result.json")
+    with open(result_json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # 2. 구글 드라이브 링크 수집 (외부 함수 호출 가정)
+    media_url = get_drive_file_url(f"{base_name}.mp4") or get_drive_file_url(f"{base_name}.mp3") or get_drive_file_url(f"{base_name}.m4a")
+    pdf_url = get_drive_file_url(f"{base_name}.pdf")
+    
+    # 3. 미디어 타입 판별
+    is_video = ".mp4" in (media_url.lower() if media_url else "")
     block_type = "video" if is_video else "audio"
 
-    # 1. 미디어 블록 준비
+    # 4. 데이터베이스 속성(Properties) - 노션 DB 컬럼명과 일치해야 함
+    properties = {
+        "이름": {"title": [{"text": {"content": f"📖 {base_name}"}}]},
+        "원본 PDF": {"url": pdf_url if pdf_url else None},
+        "강의 영상": {"url": media_url if media_url else None},
+        "상태": {"select": {"name": "✅ 완료"}}
+    }
+
+    # 5. 페이지 본문(Children) 구성
     children = []
+    
+    # 미디어 임베드
     if media_url:
         embed_url = media_url.replace("/view?usp=drivesdk", "/preview")
-        children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "🎧 강의 다시듣기" if not is_video else "📺 강의 다시보기"}}]}})
-        children.append({"object": "block", f"type": {block_type}, block_type: {"type": "external", "external": {"url": embed_url}}})
+        children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📺 강의 다시보기" if is_video else "🎧 강의 다시듣기"}}]}})
+        children.append({"object": "block", "type": block_type, block_type: {"type": "external", "external": {"url": embed_url}}})
 
-    # 2. 요약 블록 추가
+    # 요약 및 용어
     children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📌 강의 핵심 요약"}}]}})
-    children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": summary}}]}})
+    children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": data["summary"]}}]}})
 
-    # 3. 중요 용어 정리 (2000자 초과 대응)
-    children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📑 중요 용어 정리 (Harrison 21st ed.)"}}]}})
-    children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": terms}}]}})
+    #children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📑 중요 용어 정리"}}]}})
+    #children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": data["terms"]}}]}})
 
-    # 4. 전체 교정 스크립트 (2000자 초과 대응)
+    # 전체 스크립트
     children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📝 최종 교정 스크립트"}}]}})
-    children.extend(create_rich_text_blocks(corrected_text, block_type="paragraph"))
+    children.extend(create_rich_text_blocks(data["corrected_text"]))
 
     try:
+        # parent를 database_id로 설정하여 데이터베이스에 한 줄(Row)로 생성
         notion.pages.create(
-            parent={"page_id": parent_page_id},
-            properties={"title": {"title": [{"text": {"content": f"📖 {base_name}"}}]}},
+            parent={"database_id": database_id},
+            properties=properties,
             children=children
         )
-        print("✅ 노션 업로드 성공! (긴 텍스트 분할 처리 완료)")
+        print(f"✅ [Notion] '{base_name}' 업로드 성공!")
+
+        
+        old_path = os.path.join(target_dir, f"{base_name}_result.json")
+        new_path = os.path.join(target_dir, f"{base_name}_done.json")
+        if os.path.exists(old_path):
+            os.rename(old_path, new_path)
     except Exception as e:
-        print(f"❌ 노션 업로드 실패: {e}")
+        print(f"❌ [Notion] 업로드 실패: {e}")

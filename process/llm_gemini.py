@@ -34,7 +34,13 @@ def correct_script_with_gemini(audio_text, pdf_text):
     [음성 스크립트]
     {audio_text}
     
-    위 두 자료를 바탕으로 규칙에 맞게 교정된 최종 음성 스크립트만 출력하세요.
+
+    출력 형식:
+    (강의 핵심 내용 및 중요한 내용 요약, 주제마다 bullet point로)
+    [SEPARATOR] 
+    (중요 용어와 설명)
+    [SEPARATOR]
+    (교정된 스크립트)
     """
 
     # 텍스트 처리에 빠르고 정확한 gemini-2.5-flash 모델 사용
@@ -47,34 +53,15 @@ def correct_script_with_gemini(audio_text, pdf_text):
             user_prompt,
             generation_config=genai.GenerationConfig(temperature=0.1) # 팩트 위주 보수적 세팅
         )
+
+        parts = response.text.split("[SEPARATOR]")
+        summary = parts[0].strip() if len(parts) > 0 else ""
+        terms = parts[1].strip() if len(parts) > 1 else "요약 생성 실패"
+        corrected_text = parts[2].strip() if len(parts) > 2 else "용어 정리 실패"
         print("✨ [AI 팀] Gemini 교정 완료!")
-        return response.text
+
+        return summary, terms, corrected_text
         
     except Exception as e:
         print(f"❌ Gemini API 처리 오류: {e}")
         return None
-
-def summarize_corrected_text(corrected_text):
-    print("🤖 [AI 팀] 교정본 바탕으로 핵심 요약 및 용어 추출 중...")
-    prompt = f"""다음은 교정된 의학 강의 스크립트입니다. 이를 바탕으로 요약과 용어를 정리하세요.
-    
-    [형식]
-    [SUMMARY] (강의 핵심 내용 요약)
-    [TERMS] (중요 용어와 설명)
-    [스크립트]
-    {corrected_text}"""
-    
-    # 텍스트 처리에 빠르고 정확한 gemini-2.5-flash 모델 사용
-    model = genai.GenerativeModel(
-        model_name="gemini-3-flash-preview",
-        #system_instruction=system_instruction
-    )
-    response = model.generate_content(prompt)
-    content = response.text
-    
-    # 데이터 파싱
-    parts = content.split("[TERMS]")
-    summary = parts[0].replace("[SUMMARY]", "").strip()
-    terms = parts[1].strip() if len(parts) > 1 else ""
-    
-    return summary, terms

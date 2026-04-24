@@ -2,19 +2,22 @@ print("파이썬 스크립트 시작됨")
 
 import time
 import os
+import json
+import shutil
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from extract.pdf_extract import extract_text_from_pdf
 from extract.audio_extract import extract_text_from_audio
 from process.llm_gemini import correct_script_with_gemini
-from process.notion_sync import sync_to_notion
+from process.notion_sync import trigger_notion_upload
 
 print("라이브러리 import 완료")
 
 # 🎯 감시할 구글 드라이브 로컬 경로 (현재는 테스트용 폴더)
-WATCH_PATH = r"G:\내 드라이브\2026-1"
-
+WATCH_PATH = parent_page_id = os.getenv("WATCH_PATH")
+       
 class StudyDataHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
@@ -41,7 +44,7 @@ class StudyDataHandler(FileSystemEventHandler):
         if extension == '.pdf':
             pdf_text = extract_text_from_pdf(file_path)
             self.save_result(base_name, pdf_text, "강의자료")
-
+        
         if extension in ['.mp4', '.m4a', '.mp3', '.wav', '.pdf']:
             self.check_and_start_ai_correction(base_name)
 
@@ -59,60 +62,66 @@ class StudyDataHandler(FileSystemEventHandler):
         # 짝꿍 파일들의 예상 경로
         audio_txt_path = os.path.join(WATCH_PATH, f"{base_name}_음성스크립트.txt")
         pdf_txt_path = os.path.join(WATCH_PATH, f"{base_name}_강의자료.txt")
-        final_txt_path = os.path.join(WATCH_PATH, f"{base_name}_최종교정본.txt")
-
+        folder_path = os.path.join(WATCH_PATH, f"{base_name}")
+        result_json_path = os.path.join(folder_path, f"{base_name}_done.json")
         # 이미 최종본이 있다면 중복 실행 방지
-        if os.path.exists(final_txt_path):
+        if os.path.exists(result_json_path) :
+            print(f"이미 '{base_name}'는 분석완료입니다.")
+            print(f"다시 하고 싶으면 '{base_name}' 폴더를 삭제해 주십시오.")
             return
 
         # 둘 다 존재한다면? Gemini 출동!
         if os.path.exists(audio_txt_path) and os.path.exists(pdf_txt_path):
             print(f"🔗 [매치 성공] '{base_name}' 자료 쌍을 찾았습니다. AI 교정을 시작합니다.")
-            
             with open(audio_txt_path, 'r', encoding='utf-8') as f:
                 audio_text = f.read()
             with open(pdf_txt_path, 'r', encoding='utf-8') as f:
                 pdf_text = f.read()
 
             # Gemini 호출
-            corrected_text = correct_script_with_gemini(audio_text, pdf_text)
-            
-            if corrected_text:
-                self.save_result(base_name, corrected_text, "최종교정본")
-                sync_to_notion(base_name, corrected_text, None, "")
+            summary, terms, corrected_text = correct_script_with_gemini(audio_text, pdf_text)
+            self.save_result(base_name, corrected_text, "최종교정본")
+            analysis_result = {
+                "base_name": base_name,
+                "corrected_text": corrected_text,
+                "summary": summary,
+                "terms": terms,
+                "timestamp": time.time()
+            }
+            result_json_path = os.path.join(WATCH_PATH, f"{base_name}_result.json")
+            with open(result_json_path, 'w', encoding='utf-8') as f:
+                json.dump(analysis_result, f, ensure_ascii=False, indent=4)
+            print(f"💾 [저장 완료] '{base_name}' 분석 결과가 저장되었습니다.")
+
+            # 전용 폴더 생성
+            target_dir = os.path.join(WATCH_PATH, base_name)
+            os.makedirs(target_dir, exist_ok=True)
+            # 관련 모든 파일 이동 (mp4, pdf, txt 등)
+            # WATCH_PATH에 있는 base_name으로 시작하는 모든 파일을 새 폴더로 옮깁니다.
+            for filename in os.listdir(WATCH_PATH):
+                if filename.startswith(base_name) and filename != base_name: # 폴더 자신 제외
+                    old_path = os.path.join(WATCH_PATH, filename)
+                    new_path = os.path.join(target_dir, filename)
+                    time.sleep(1)
+                    shutil.move(old_path, new_path)
+            trigger_notion_upload(base_name, target_dir)
+
         else:
             print(f"⏳ '{base_name}'의 짝꿍 파일이 아직 없습니다.")
 
 
 def initial_scan(handler):
-    """프로그램 시작 시, 이미 추출된 텍스트 파일이 있으면 노션 업로드를 시작합니다."""
-    print("🔍 [초기 스캔] 미처리 텍스트 파일 세트를 찾는 중...")
-    
-    all_files = os.listdir(WATCH_PATH)
-    
-    for file_name in all_files:
-        if file_name.endswith("_최종교정본.txt"):
-            base_name = file_name.replace("_최종교정본.txt", "")
-            
-            # 1. 파일의 정확한 전체 경로를 만듭니다.
-            file_path = os.path.join(WATCH_PATH, file_name)
-            
-            try:
-                # 2. 파일을 파이썬으로 열어서 내용을 모두 읽어옵니다. (이게 핵심!)
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    corrected_text = f.read()
-                
-                print(f"🎯 [발견] 교정본 읽기 성공, 노션 업로드를 시작합니다: {base_name}")
-                
-                # 3. 꺼내온 텍스트를 노션 업로드 함수에 던져줍니다.
-                sync_to_notion(base_name, corrected_text, None, "")
-                
-            except Exception as e:
-                print(f"❌ {file_name} 파일 읽기 실패: {e}")
+    """프로그램 시작 시, 아직 처리되지 않은 파일들을 찾아 처리합니다."""
+    print("🔍 [초기 스캔] 미처리 파일을 찾는 중...")
 
+    base_name = "0424_67"
+    target_dir = os.path.join(WATCH_PATH, base_name)
+    trigger_notion_upload(base_name, target_dir)
+    return
+        
 
 if __name__ == "__main__":
 
     # 🚀 시작하자마자 밀린 숙제(파일)부터 해결!
     event_handler = StudyDataHandler()
-    initial_scan(event_handler)
+    initial_scan(event_handler)    
