@@ -1,0 +1,21 @@
+# 가상환경
+venv/
+__pycache__/
+
+# 환경변수 및 API 키 (가장 중요!)
+.env
+
+# 구글 드라이브 API 인증 파일
+credentials.json
+token.pickle
+
+# 미디어 및 텍스트 파일 (불필요한 대용량 파일 제외)
+*.mp4
+*.mp3
+*.m4a
+*.wav
+*_temp.mp3
+*.txt
+
+# 맥OS 시스템 파일
+.DS_Store
