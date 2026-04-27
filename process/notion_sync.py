@@ -8,7 +8,7 @@ notion = Client(auth=os.getenv("NOTION_TOKEN"))
 database_id = os.getenv("NOTION_DATABASE_ID") 
 
 import re
-# 🌟 추가된 함수: 마크다운(**)을 노션 볼드체 속성으로 변환해 줍니다.
+# 볼드체 처리
 def convert_text_to_notion_rich_text(text):
     parts = re.split(r'\*\*(.*?)\*\*', text)
     rich_text_list = []
@@ -17,44 +17,72 @@ def convert_text_to_notion_rich_text(text):
         if not part: 
             continue
             
-        if i % 2 == 1:
-            # **로 감싸진 부분은 bold: True 처리
-            rich_text_list.append({
+        is_bold = (i % 2 == 1) # 홀수 인덱스는 ** 로 감싸진 부분
+        
+        # 만약 볼드체나 일반 텍스트 조각 자체가 2000자를 넘는다면 2000자씩 쪼개기
+        for j in range(0, len(part), 2000):
+            chunk = part[j:j+2000]
+            rt_obj = {
                 "type": "text",
-                "text": {"content": part},
-                "annotations": {"bold": True}
-            })
-        else:
-            # 일반 텍스트
-            rich_text_list.append({
-                "type": "text",
-                "text": {"content": part}
-            })
+                "text": {"content": chunk}
+            }
+            if is_bold:
+                rt_obj["annotations"] = {"bold": True}
+            
+            rich_text_list.append(rt_obj)
             
     return rich_text_list
 
-# 🌟 수정된 함수: 변환 함수를 거쳐서 블록을 생성하도록 변경되었습니다.
-def create_rich_text_blocks(text, block_type="paragraph", max_length=2000, split_by_newline=True):
+# 🌟 수정된 함수 2: 노션 API 제한(객체 100개 & 글자 2000자)을 모두 만족하도록 블록 생성
+def create_rich_text_blocks(text, block_type="paragraph", split_by_newline=True):
     blocks = []
     
-    # 옵션에 따라 줄바꿈으로 블록을 나눌지, 통째로 처리할지 결정합니다.
+    # 옵션에 따라 줄바꿈 처리
     if split_by_newline:
         sections = [p.strip() for p in text.split('\n') if p.strip()]
     else:
-        # 통째로 처리할 때는 앞뒤 공백만 자르고 내부의 \n은 그대로 살려둡니다.
         sections = [text.strip()] if text.strip() else []
 
     for section in sections:
-        # 2000자 초과 시 노션 에러를 막기 위한 청크 쪼개기
-        chunks = [section[i:i+max_length] for i in range(0, len(section), max_length)]
-        for chunk in chunks:
+        if not section:
+            continue
+            
+        # 1. 텍스트를 통째로 변환 (마크다운 깨짐 방지)
+        rich_text_list = convert_text_to_notion_rich_text(section)
+        
+        current_rich_text = []
+        current_length = 0
+        
+        # 2. 객체를 순회하며 100개 제한 & 2000자 제한에 맞춰 블록 분할
+        for rt in rich_text_list:
+            content_len = len(rt["text"]["content"])
+            
+            # [핵심 로직] 현재 배열이 100개가 되거나, 다음 텍스트를 더했을 때 2000자를 넘기면 블록 생성
+            if len(current_rich_text) >= 100 or current_length + content_len > 2000:
+                blocks.append({
+                    "object": "block",
+                    "type": block_type,
+                    block_type: {
+                        "rich_text": current_rich_text
+                    }
+                })
+                current_rich_text = [] # 초기화
+                current_length = 0
+            
+            # 배열에 추가
+            current_rich_text.append(rt)
+            current_length += content_len
+            
+        # 3. 마지막에 남은 객체들 처리
+        if current_rich_text:
             blocks.append({
                 "object": "block",
                 "type": block_type,
                 block_type: {
-                    "rich_text": convert_text_to_notion_rich_text(chunk)
+                    "rich_text": current_rich_text
                 }
             })
+            
     return blocks
 
 

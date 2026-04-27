@@ -1,6 +1,6 @@
 import os
 import google.genai as genai
-from google.genai import types # 이 줄을 꼭 추가해주세요!
+from google.genai import types
 from dotenv import load_dotenv
 
 # 🎯 환경변수(또는 .env)에서 API_KEY를 불러옵니다!
