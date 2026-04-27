@@ -111,18 +111,21 @@ class StudyDataHandler(FileSystemEventHandler):
 def initial_scan(handler):
     """프로그램 시작 시, 아직 처리되지 않은 파일들을 찾아 처리합니다."""
     print("🔍 [초기 스캔] 미처리 파일을 찾는 중...")
-    
-    # 폴더 내 모든 파일을 리스트업
+
+    # 폴더 내 모든 파일 대상으로 하고 싶은 작업이 있다면 여기에서
     # all_files = [f for f in os.listdir(WATCH_PATH) if os.path.isfile(os.path.join(WATCH_PATH, f))]
-    
     # for file_name in all_files:
-    #     file_path = os.path.join(WATCH_PATH, file_name)
-    #     base_name = os.path.splitext(file_name)[0]
-    #     extension = os.path.splitext(file_name)[1].lower()
-    #     handler.check_and_start_ai_correction(base_name)
+
+
+    #파일명을 넣고 원하는 작업을 진행. (안하는 작업을 주석처리)
     base_name = "0422_3"
-    target_dir = os.path.join(WATCH_PATH, base_name)
-    trigger_notion_upload(base_name, target_dir)
+
+    #음성 스크립트와 강의자료.txt가 모두 만들어지고 교정하기~노션 업로드
+    #handler.check_and_start_ai_correction(base_name)
+
+    #이미 _result.json까지 만들어진 것을 노션 업로드만
+    #target_dir = os.path.join(WATCH_PATH, base_name)
+    #trigger_notion_upload(base_name, target_dir)
         
 
 if __name__ == "__main__":
