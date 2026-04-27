@@ -1,5 +1,6 @@
 import os
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types # 이 줄을 꼭 추가해주세요!
 from dotenv import load_dotenv
 
 # 🎯 환경변수(또는 .env)에서 API_KEY를 불러옵니다!
@@ -7,7 +8,7 @@ load_dotenv()
 api_key = os.getenv("API_KEY")
 if not api_key:
     print("⚠️ API_KEY 환경변수가 설정되지 않았습니다. .env 파일이나 시스템 환경변수를 확인해주세요.")
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key)
 
 def correct_script_with_gemini(audio_text, pdf_text):
     print("\n🤖 [AI 팀] Gemini API 교정 작업 시작...")
@@ -44,21 +45,23 @@ def correct_script_with_gemini(audio_text, pdf_text):
     (교정된 스크립트)
     """
 
-    # 텍스트 처리에 빠르고 정확한 gemini-2.5-flash 모델 사용
-    model = genai.GenerativeModel(
-        model_name="gemini-3-flash-preview",
-        system_instruction=system_instruction
-    )
     try:
-        response = model.generate_content(
-            user_prompt,
-            generation_config=genai.GenerationConfig(temperature=0.1) # 팩트 위주 보수적 세팅
+        # 변경된 부분: 모델 객체 생성 없이 client 객체에서 바로 호출합니다.
+        # system_instruction과 temperature는 config 안에 묶어서 전달합니다.
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.1
+            )
         )
 
         parts = response.text.split("[SEPARATOR]")
         summary = parts[0].strip() if len(parts) > 0 else ""
-        terms = parts[1].strip() if len(parts) > 1 else "요약 생성 실패"
-        corrected_text = parts[2].strip() if len(parts) > 2 else "용어 정리 실패"
+        terms = parts[1].strip() if len(parts) > 1 else "용어 정리 실패"
+        corrected_text = parts[2].strip() if len(parts) > 2 else "스크립트 교정 실패"
+        
         print("✨ [AI 팀] Gemini 교정 완료!")
 
         return summary, terms, corrected_text
