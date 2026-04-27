@@ -4,7 +4,7 @@ import time
 import os
 import json
 import shutil
-
+#실시간 감시
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -17,7 +17,7 @@ print("라이브러리 import 완료")
 
 # 🎯 감시할 구글 드라이브 로컬 경로 (현재는 테스트용 폴더)
 WATCH_PATH = parent_page_id = os.getenv("WATCH_PATH")
-       
+
 class StudyDataHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
@@ -67,7 +67,6 @@ class StudyDataHandler(FileSystemEventHandler):
         # 이미 최종본이 있다면 중복 실행 방지
         if os.path.exists(result_json_path) :
             print(f"이미 '{base_name}'는 분석완료입니다.")
-            print(f"다시 하고 싶으면 '{base_name}' 폴더를 삭제해 주십시오.")
             return
 
         # 둘 다 존재한다면? Gemini 출동!
@@ -109,15 +108,21 @@ class StudyDataHandler(FileSystemEventHandler):
         else:
             print(f"⏳ '{base_name}'의 짝꿍 파일이 아직 없습니다.")
 
-
 def initial_scan(handler):
     """프로그램 시작 시, 아직 처리되지 않은 파일들을 찾아 처리합니다."""
     print("🔍 [초기 스캔] 미처리 파일을 찾는 중...")
-
-    base_name = "0424_67"
+    
+    # 폴더 내 모든 파일을 리스트업
+    # all_files = [f for f in os.listdir(WATCH_PATH) if os.path.isfile(os.path.join(WATCH_PATH, f))]
+    
+    # for file_name in all_files:
+    #     file_path = os.path.join(WATCH_PATH, file_name)
+    #     base_name = os.path.splitext(file_name)[0]
+    #     extension = os.path.splitext(file_name)[1].lower()
+    #     handler.check_and_start_ai_correction(base_name)
+    base_name = "0422_3"
     target_dir = os.path.join(WATCH_PATH, base_name)
     trigger_notion_upload(base_name, target_dir)
-    return
         
 
 if __name__ == "__main__":
@@ -125,3 +130,4 @@ if __name__ == "__main__":
     # 🚀 시작하자마자 밀린 숙제(파일)부터 해결!
     event_handler = StudyDataHandler()
     initial_scan(event_handler)    
+    print(f"\n✅ 초기 스캔 완료.")

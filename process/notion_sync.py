@@ -40,7 +40,11 @@ def trigger_notion_upload(base_name, target_dir):
     pdf_url = get_drive_file_url(f"{base_name}.pdf")
     
     # 3. 미디어 타입 판별
-    is_video = ".mp4" in (media_url.lower() if media_url else "")
+    video_path = os.path.join(target_dir, f"{base_name}.mp4")
+    if os.path.exists(video_path) : 
+        is_video = True
+    else : 
+        is_video = False
     block_type = "video" if is_video else "audio"
 
     # 4. 데이터베이스 속성(Properties) - 노션 DB 컬럼명과 일치해야 함
@@ -60,12 +64,12 @@ def trigger_notion_upload(base_name, target_dir):
         children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📺 강의 다시보기" if is_video else "🎧 강의 다시듣기"}}]}})
         children.append({"object": "block", "type": block_type, block_type: {"type": "external", "external": {"url": embed_url}}})
 
-    # 요약 및 용어
+    # 요약
     children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📌 강의 핵심 요약"}}]}})
     children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": data["summary"]}}]}})
-
-    #children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📑 중요 용어 정리"}}]}})
-    #children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": data["terms"]}}]}})
+    # 용어
+    children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📑 중요 용어 정리"}}]}})
+    children.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"text": {"content": data["terms"]}}]}})
 
     # 전체 스크립트
     children.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": [{"text": {"content": "📝 최종 교정 스크립트"}}]}})

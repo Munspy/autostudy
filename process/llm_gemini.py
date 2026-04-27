@@ -23,6 +23,7 @@ def correct_script_with_gemini(audio_text, pdf_text):
     4. 영어로 된 의학 용어는 그대로 영어로 표현하고, 일반적으로 외래어로 인식되어 한국어로 쓰이는 단어들은 한글로 표현해주세요.
     5. 임상적인 기준이나 표기가 모호한 경우, 반드시 '해리슨 내과학'을 표준 기준으로 삼으세요.
     6. 원본 강의의 흐름은 그대로 유지하세요.
+    7. 출력 형식이 요구될 경우 엄격히 따르세요.
     """
     
     user_prompt = f"""
@@ -35,8 +36,8 @@ def correct_script_with_gemini(audio_text, pdf_text):
     {audio_text}
     
 
-    출력 형식:
-    (강의 핵심 내용 및 중요한 내용 요약, 주제마다 bullet point로)
+    엄격한 출력 형식:
+    (강의 핵심 내용 및 중요한 내용들 요약)
     [SEPARATOR] 
     (중요 용어와 설명)
     [SEPARATOR]

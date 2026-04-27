@@ -11,7 +11,7 @@ from watchdog.events import FileSystemEventHandler
 from extract.pdf_extract import extract_text_from_pdf
 from extract.audio_extract import extract_text_from_audio
 from process.llm_gemini import correct_script_with_gemini
-from process.notion_sync import sync_to_notion
+from process.notion_sync import trigger_notion_upload
 
 print("라이브러리 import 완료")
 
