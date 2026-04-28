@@ -2,13 +2,14 @@ print("파이썬 스크립트 시작됨")
 
 import time
 import os
+import sys
 import json
 import shutil
-#실시간 감시
+from dotenv import load_dotenv
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
 from extract.pdf_extract import extract_text_from_pdf
+from extract.pdf_image_save import extract_pages_to_images
 from extract.audio_extract import extract_text_from_audio
 from process.llm_gemini import correct_script_with_gemini
 from process.notion_sync import trigger_notion_upload
@@ -16,8 +17,11 @@ from study_handler import StudyDataHandler
 
 print("라이브러리 import 완료")
 
+# 💡 macOS 백그라운드 실행 시 경로 꼬임 방지를 위한 절대 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 # 🎯 감시할 구글 드라이브 로컬 경로 (현재는 테스트용 폴더)
-WATCH_PATH = parent_page_id = os.getenv("WATCH_PATH")
+WATCH_PATH = os.getenv("WATCH_PATH")
 
 
 def initial_scan(handler):

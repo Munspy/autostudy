@@ -2,13 +2,14 @@ print("파이썬 스크립트 시작됨")
 
 import time
 import os
+import sys
 import json
 import shutil
-#실시간 감시
+from dotenv import load_dotenv
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
 from extract.pdf_extract import extract_text_from_pdf
+from extract.pdf_image_save import extract_pages_to_images
 from extract.audio_extract import extract_text_from_audio
 from process.llm_gemini import correct_script_with_gemini
 from process.notion_sync import trigger_notion_upload
@@ -16,8 +17,11 @@ from study_handler import StudyDataHandler
 
 print("라이브러리 import 완료")
 
+# 💡 macOS 백그라운드 실행 시 경로 꼬임 방지를 위한 절대 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 # 🎯 감시할 구글 드라이브 로컬 경로 (현재는 테스트용 폴더)
-WATCH_PATH = parent_page_id = os.getenv("WATCH_PATH")
+WATCH_PATH = os.getenv("WATCH_PATH")
 
 
 def initial_scan(handler):
@@ -29,12 +33,15 @@ def initial_scan(handler):
     
     for file_name in all_files:
         file_path = os.path.join(WATCH_PATH, file_name)
+        file_name = os.path.basename(file_path)
+        if "_temp" in file_name or file_name.startswith("~$") or file_name.startswith("."):
+            return
+        
         base_name = os.path.splitext(file_name)[0]
         extension = os.path.splitext(file_name)[1].lower()
 
         # 텍스트 추출이 필요한 원본 파일들 찾기
         # (이미 텍스트 파일이 존재하면 건너뜁니다)
-        
         text_made = False
         if extension in ['.mp4', '.m4a', '.mp3', '.wav']:
             if f"{base_name}_음성스크립트.txt" not in all_files:
@@ -51,6 +58,10 @@ def initial_scan(handler):
                 if pdf_text:
                     handler.save_result(base_name, pdf_text, "강의자료")
                     text_made = True
+                
+                print(f"📸 [PDF 팀] 슬라이드 이미지 캡처 중...")
+                extract_pages_to_images(file_path, output_base_dir=WATCH_PATH)
+                self.check_and_start_ai_correction(base_name)
 
         if text_made : 
             handler.check_and_start_ai_correction(base_name)
