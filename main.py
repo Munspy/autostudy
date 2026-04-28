@@ -66,7 +66,7 @@ def initial_scan(handler):
                 
                 print(f"📸 [PDF 팀] 슬라이드 이미지 캡처 중...")
                 extract_pages_to_images(file_path, output_base_dir=WATCH_PATH)
-                self.check_and_start_ai_correction(base_name)
+                handler.check_and_start_ai_correction(base_name)
 
         if text_made : 
             handler.check_and_start_ai_correction(base_name)
