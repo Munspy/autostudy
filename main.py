@@ -43,7 +43,7 @@ def initial_scan(handler):
         if "_temp" in file_name or file_name.startswith("~$") or file_name.startswith("."):
             continue
         
-        base_name = os.path.splitext(file_name)[0]
+        base_name = handler.trim_name(os.path.splitext(file_name)[0])
         extension = os.path.splitext(file_name)[1].lower()
 
         # 텍스트 추출이 필요한 원본 파일들 찾기
@@ -54,7 +54,8 @@ def initial_scan(handler):
                 print(f"📦 발견: 미처리 음성 파일 -> {file_name}")
                 audio_text = extract_text_from_audio(file_path)
                 if audio_text:
-                    handler.save_result(base_name, audio_text, "음성스크립트")
+                    my_name = handler.save_result(base_name, audio_text, "음성스크립트")
+                    handler.name_check(my_name)
                     text_made = True
         
         if extension == '.pdf':
@@ -62,12 +63,12 @@ def initial_scan(handler):
                 print(f"📦 발견: 미처리 PDF 파일 -> {file_name}")
                 pdf_text = extract_text_from_pdf(file_path)
                 if pdf_text:
-                    handler.save_result(base_name, pdf_text, "강의자료")
+                    my_name = handler.save_result(base_name, pdf_text, "강의자료")
+                    handler.name_check(my_name)
                     text_made = True
                 
                 print(f"📸 [PDF 팀] 슬라이드 이미지 캡처 중...")
                 extract_pages_to_images(file_path, output_base_dir=WATCH_PATH)
-                handler.check_and_start_ai_correction(base_name)
 
         if text_made : 
             handler.check_and_start_ai_correction(base_name)

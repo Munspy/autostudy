@@ -54,6 +54,29 @@ class StudyDataHandler(FileSystemEventHandler):
             target_dir = os.path.join(WATCH_PATH, base_name)
             trigger_notion_upload(base_name, target_dir)
 
+    def name_check(self, my_name) :
+        my_base = os.path.splitext(my_name)[0]
+        your_base = my_base
+        for file_name in os.listdir(WATCH_PATH):
+            file_path = os.path.join(WATCH_PATH, file_name)
+            file_base = os.path.splitext(file_name)[0]
+            file_extension = os.path.splitext(file_name)[1]
+            if file_base in my_base :
+                new_path = os.path.join(WATCH_PATH, my_base + file_extension)
+                os.rename(file_path, new_path)
+            if your_base in file_name : 
+                your_base = file_base
+        if my_base != your_base : 
+            my_path = os.path.join(WATCH_PATH, my_name)
+            your_path = os.path.join(WATCH_PATH, your_base + os.path.splitext(my_name)[1])
+            os.rename(my_path, your_path)
+
+    def trim_name(self, base_name) : 
+        parts = base_name.split('_')
+        if len(parts) > 4 : 
+            return '_'.join(parts[:4])
+        return base_name
+
     def save_result(self, base_name, text, suffix):
         save_name = f"{base_name}_{suffix}.txt"
         save_path = os.path.join(WATCH_PATH, save_name)
@@ -63,6 +86,7 @@ class StudyDataHandler(FileSystemEventHandler):
         # 앞부분 내용 살짝 미리보기
         preview = text[:20] + "..." if len(text) > 20 else text
         print(f"📝 미리보기: {preview}")
+        return save_name
 
     def check_and_start_ai_correction(self, base_name):
         # 짝꿍 파일들의 예상 경로
